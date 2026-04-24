@@ -5,12 +5,30 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 const CLOUDINARY_CLOUD = "dr9detyn6";
 const CLOUDINARY_PRESET = "lost_found";
 
+function compressImage(file, maxWidth = 1024, quality = 0.75) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(resolve, "image/jpeg", quality);
+    };
+    img.src = url;
+  });
+}
+
 async function uploadToCloudinary(file) {
+  const compressed = await compressImage(file);
   const form = new FormData();
-  form.append("file", file);
+  form.append("file", compressed, "photo.jpg");
   form.append("upload_preset", CLOUDINARY_PRESET);
   const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method: "POST", body: form });
-  if (!res.ok) throw new Error("Image upload failed");
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || "Upload failed"); }
   const data = await res.json();
   return data.secure_url;
 }
