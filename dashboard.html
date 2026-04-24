@@ -107,6 +107,23 @@
 
       <input id="phone" placeholder="Mobile number (10 digits)" maxlength="10"
         class="md:col-span-2 px-4 py-2 rounded-xl bg-black/40 border border-white/20" />
+
+      <!-- Photo upload -->
+      <div class="md:col-span-2">
+        <label class="block text-sm text-gray-400 mb-2">Photo (optional)</label>
+        <div class="flex flex-col gap-2">
+          <input id="photo" type="file" accept="image/*"
+            class="w-full px-4 py-2 rounded-xl bg-black/40 border border-white/20 text-gray-300 file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-purple-500/30 file:text-purple-300 file:cursor-pointer cursor-pointer"
+            onchange="previewPhoto(this)" />
+          <input id="photoCamera" type="file" accept="image/*" capture="environment"
+            class="hidden" onchange="previewPhoto(this)" />
+          <button type="button" onclick="document.getElementById('photoCamera').click()"
+            class="w-full py-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 transition">
+            📷 Take Photo with Camera
+          </button>
+        </div>
+        <img id="photoPreview" src="" alt="" class="hidden mt-3 rounded-xl max-h-48 object-cover border border-white/20" />
+      </div>
     </div>
 
     <button onclick="postItem()" class="mt-6 w-full py-3 rounded-xl font-semibold
@@ -195,6 +212,21 @@
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js");
+    }
+
+    function previewPhoto(input) {
+      const preview = document.getElementById("photoPreview");
+      if (input.files && input.files[0]) {
+        // Transfer file to the main #photo input so postItem() always reads from there
+        const dt = new DataTransfer();
+        dt.items.add(input.files[0]);
+        document.getElementById("photo").files = dt.files;
+        preview.src = URL.createObjectURL(input.files[0]);
+        preview.classList.remove("hidden");
+      } else {
+        preview.src = "";
+        preview.classList.add("hidden");
+      }
     }
   </script>
 
