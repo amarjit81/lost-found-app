@@ -2,19 +2,6 @@ import { auth, db } from "./firebase.js";
 import { collection, addDoc, getDocs, deleteDoc, doc, getDoc, updateDoc, serverTimestamp, query, orderBy, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-const CLOUDINARY_CLOUD = "dr9detyn6";
-const CLOUDINARY_PRESET = "lost_found";
-
-async function uploadToCloudinary(file) {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("upload_preset", CLOUDINARY_PRESET);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method: "POST", body: form });
-  if (!res.ok) throw new Error("Image upload failed");
-  const data = await res.json();
-  return data.secure_url;
-}
-
 const ADMIN_EMAILS = ["admin@thapar.edu", "araj3_be24@thapar.edu"];
 const MATCH_THRESHOLD = 50;
 const WEIGHTS = { category: 40, location: 30, keywords: 30 };
@@ -127,26 +114,13 @@ window.postItem = async () => {
   const user = auth.currentUser;
   if (!user) return msg.innerText = "Session expired. Please login again.";
 
-  // Upload photo if selected
-  let imageUrl = null;
-  const photoFile = $("photo")?.files?.[0];
-  if (photoFile) {
-    msg.innerText = "Uploading photo…";
-    try {
-      imageUrl = await uploadToCloudinary(photoFile);
-    } catch {
-      return msg.innerText = "Photo upload failed. Try a smaller image or skip the photo.";
-    }
-  }
-
-  const docRef = await addDoc(collection(db, "items"), { type, category, title, description, location, phone, imageUrl, email: user.email, uid: user.uid, status: "open", createdAt: serverTimestamp(), expiresAt: Date.now() + 3 * 24 * 60 * 60 * 1000 });
+  const docRef = await addDoc(collection(db, "items"), { type, category, title, description, location, phone, email: user.email, uid: user.uid, status: "open", createdAt: serverTimestamp(), expiresAt: Date.now() + 3 * 24 * 60 * 60 * 1000 });
   msg.innerText = "Item posted! Searching for matches...";
 
   const matchCount = await findMatches({ id: docRef.id, type, category, title, description, location, phone, email: user.email, uid: user.uid });
   msg.innerText = matchCount > 0 ? `✅ Item posted! Found ${matchCount} potential match${matchCount > 1 ? 'es' : ''}!` : "✅ Item posted successfully! We'll notify you if we find matches.";
 
   ["title", "description", "location", "phone"].forEach(id => $(id).value = "");
-  if ($("photo")) { $("photo").value = ""; $("photoPreview").classList.add("hidden"); }
   await loadItems();
 };
 
@@ -167,7 +141,6 @@ async function loadItems() {
       <h3 class="text-xl font-semibold text-cyan-400">${item.title} <span class="text-sm text-gray-400">(${item.type})</span></h3>
       <p class="text-gray-300 mt-1">${item.description}</p>
       <p class="text-gray-400 mt-2">📍 ${item.location}</p>
-      ${item.imageUrl ? `<img src="${item.imageUrl}" alt="Item photo" class="mt-3 rounded-xl max-h-52 object-cover border border-white/20" loading="lazy" />` : ''}
       <div class="mt-4 flex flex-wrap gap-3">
         <a href="tel:${item.phone}" class="px-5 py-2 rounded-xl font-medium bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 transition">📞 Contact</a>
         ${user && (user.uid === item.uid || isAdmin(user)) ? `<button onclick="openResolveModal('${id}')" class="px-5 py-2 rounded-xl font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 transition">✅ Mark as Resolved</button>` : ''}
