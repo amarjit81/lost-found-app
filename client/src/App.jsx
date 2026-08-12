@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight, Bell, BookOpen, Check, ChevronDown, CircleHelp, Clock3, Eye, Filter,
   HeartHandshake, KeyRound, Laptop, LogOut, MapPin, Menu, PackageCheck, Plus, Search,
-  ShieldCheck, Smartphone, Sparkles, UserRound, WalletCards, X
+  Pencil, ShieldCheck, Smartphone, Sparkles, Trash2, UserRound, WalletCards, X
 } from "lucide-react";
 import { api, getToken, setToken } from "./api.js";
 import { formatDate, initials, queryString } from "./utils.js";
@@ -200,21 +200,56 @@ function ItemCard({ item, currentUser, onChanged }) {
   const Icon = categoryIcons[item.category] || PackageCheck;
   const mine = item.createdBy?._id === currentUser?.id || item.createdBy === currentUser?.id;
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState("");
 
   async function toggleResolved() {
-    setBusy(true);
+    setError(""); setBusy(true);
     try { await api(`/items/${item._id}`, { method: "PATCH", body: JSON.stringify({ status: item.status === "open" ? "resolved" : "open" }) }); onChanged?.(); }
+    catch (error) { setError(error.message); }
     finally { setBusy(false); }
   }
 
-  return <article className={`item-card ${item.status === "resolved" ? "resolved" : ""}`}>
+  async function removeItem() {
+    if (!window.confirm(`Delete “${item.title}”? This cannot be undone.`)) return;
+    setError(""); setBusy(true);
+    try { await api(`/items/${item._id}`, { method: "DELETE" }); onChanged?.(); }
+    catch (error) { setError(error.message); }
+    finally { setBusy(false); }
+  }
+
+  return <><article className={`item-card ${item.status === "resolved" ? "resolved" : ""}`}>
     <div className={`item-art ${item.category.toLowerCase().replaceAll(" ", "-")}`}>{item.imageUrl ? <img src={item.imageUrl} alt="" /> : <Icon />}</div>
     <div className="item-body"><div className="item-meta"><span className={`type-pill ${item.type}`}>{item.type}</span><span><Clock3 /> {formatDate(item.occurredAt)}</span></div><h3>{item.title}</h3><p className="description">{item.description}</p><p className="location"><MapPin /> {item.location}</p>
       <div className="card-footer"><div className="poster"><span>{initials(item.createdBy?.name)}</span><small>Posted by<br /><strong>{item.createdBy?.name || "Campus member"}</strong></small></div>
-        {mine ? <button className="resolve-button" onClick={toggleResolved} disabled={busy}><Check /> {item.status === "open" ? "Mark resolved" : "Reopen"}</button> : <a className="contact-button" href={`mailto:${item.contact}`}><HeartHandshake /> Contact</a>}
+        {!mine && <a className="contact-button" href={`mailto:${item.contact}`}><HeartHandshake /> Contact</a>}
       </div>
+      {mine && <div className="owner-actions"><button onClick={() => setEditing(true)} disabled={busy}><Pencil /> Edit</button><button onClick={toggleResolved} disabled={busy}><Check /> {item.status === "open" ? "Resolve" : "Reopen"}</button><button className="danger" onClick={removeItem} disabled={busy}><Trash2 /> Delete</button></div>}
+      {error && <p className="card-error" role="alert">{error}</p>}
     </div>
-  </article>;
+  </article>{editing && <EditReportModal item={item} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); onChanged?.(); }} />}</>;
+}
+
+function EditReportModal({ item, onClose, onSaved }) {
+  const [form, setForm] = useState({ title: item.title, description: item.description, location: item.location, contact: item.contact, imageUrl: item.imageUrl || "" });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault(); setError(""); setBusy(true);
+    try { await api(`/items/${item._id}`, { method: "PATCH", body: JSON.stringify(form) }); onSaved(); }
+    catch (error) { setError(error.message); }
+    finally { setBusy(false); }
+  }
+
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="edit-modal" role="dialog" aria-modal="true" aria-labelledby={`edit-${item._id}`}>
+      <div className="modal-head"><div><span className="section-kicker">Update report</span><h2 id={`edit-${item._id}`}>Edit {item.title}</h2></div><button type="button" onClick={onClose} aria-label="Close editor"><X /></button></div>
+      <form onSubmit={submit} className="edit-form"><label>Short title<input value={form.title} maxLength="100" onChange={(event) => setForm({ ...form, title: event.target.value })} required /></label><label>Description<textarea rows="4" value={form.description} maxLength="1000" onChange={(event) => setForm({ ...form, description: event.target.value })} required /></label><label>Last seen / found at<input value={form.location} maxLength="140" onChange={(event) => setForm({ ...form, location: event.target.value })} required /></label><label>Contact email or phone<input value={form.contact} maxLength="120" onChange={(event) => setForm({ ...form, contact: event.target.value })} required /></label><label>Image URL <em>optional</em><input type="url" value={form.imageUrl} onChange={(event) => setForm({ ...form, imageUrl: event.target.value })} /></label>
+        {error && <div className="form-error" role="alert">{error}</div>}<div className="form-actions"><button type="button" className="text-button" onClick={onClose}>Cancel</button><button className="button small" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button></div>
+      </form>
+    </section>
+  </div>;
 }
 
 function Discover({ refreshKey, onRefresh }) {
@@ -222,9 +257,10 @@ function Discover({ refreshKey, onRefresh }) {
   const [filters, setFilters] = useState({ search: "", type: "", category: "", status: "open" });
   const [data, setData] = useState({ items: [], stats: {} });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const timer = setTimeout(() => { setLoading(true); api(`/items?${queryString(filters)}`).then(setData).finally(() => setLoading(false)); }, 180);
+    const timer = setTimeout(() => { setLoading(true); setError(""); api(`/items?${queryString(filters)}`).then(setData).catch((error) => setError(error.message)).finally(() => setLoading(false)); }, 180);
     return () => clearTimeout(timer);
   }, [filters, refreshKey]);
 
@@ -233,7 +269,7 @@ function Discover({ refreshKey, onRefresh }) {
     <section className="stats-row"><div><span className="stat-icon lost"><Search /></span><p><strong>{data.stats.lostOpen ?? "—"}</strong>Lost reports</p></div><div><span className="stat-icon found"><PackageCheck /></span><p><strong>{data.stats.foundOpen ?? "—"}</strong>Found reports</p></div><div><span className="stat-icon resolved"><HeartHandshake /></span><p><strong>{data.stats.resolved ?? "—"}</strong>Reunited items</p></div></section>
     <section className="feed-controls"><div className="search-box"><Search /><input placeholder="Search wallet, library, ID card…" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div><div className="filters"><Filter size={18} /><select value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}><option value="">Lost & found</option><option value="lost">Lost only</option><option value="found">Found only</option></select><select value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })}>{categories.map((category) => <option key={category} value={category}>{category || "All categories"}</option>)}</select></div></section>
     <div className="feed-heading"><h2>Recent reports</h2><span>{data.pagination?.total ?? 0} open items</span></div>
-    {loading ? <CardSkeletons /> : data.items.length ? <div className="item-grid">{data.items.map((item) => <ItemCard key={item._id} item={item} currentUser={user} onChanged={onRefresh} />)}</div> : <EmptyFeed />}
+    {error ? <div className="request-error" role="alert"><strong>Couldn’t load reports.</strong><span>{error}</span></div> : loading ? <CardSkeletons /> : data.items.length ? <div className="item-grid">{data.items.map((item) => <ItemCard key={item._id} item={item} currentUser={user} onChanged={onRefresh} />)}</div> : <EmptyFeed />}
   </>;
 }
 
@@ -265,8 +301,9 @@ function MyPosts({ refreshKey, onRefresh }) {
   const [status, setStatus] = useState("open");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { setLoading(true); api(`/items?mine=true&status=${status}`).then(({ items }) => setItems(items)).finally(() => setLoading(false)); }, [status, refreshKey]);
-  return <><section className="page-heading"><div><span className="section-kicker">Your activity</span><h1>My reports</h1><p>Manage the items you have reported to the campus.</p></div><Link className="button" to="/app/report"><Plus /> New report</Link></section><div className="tabs"><button className={status === "open" ? "active" : ""} onClick={() => setStatus("open")}>Open</button><button className={status === "resolved" ? "active" : ""} onClick={() => setStatus("resolved")}>Resolved</button></div>{loading ? <CardSkeletons /> : items.length ? <div className="item-grid">{items.map((item) => <ItemCard key={item._id} item={item} currentUser={user} onChanged={onRefresh} />)}</div> : <EmptyFeed />}</>;
+  const [error, setError] = useState("");
+  useEffect(() => { setLoading(true); setError(""); api(`/items?mine=true&status=${status}`).then(({ items }) => setItems(items)).catch((error) => setError(error.message)).finally(() => setLoading(false)); }, [status, refreshKey]);
+  return <><section className="page-heading"><div><span className="section-kicker">Your activity</span><h1>My reports</h1><p>Manage the items you have reported to the campus.</p></div><Link className="button" to="/app/report"><Plus /> New report</Link></section><div className="tabs"><button className={status === "open" ? "active" : ""} onClick={() => setStatus("open")}>Open</button><button className={status === "resolved" ? "active" : ""} onClick={() => setStatus("resolved")}>Resolved</button></div>{error ? <div className="request-error" role="alert"><strong>Couldn’t load your reports.</strong><span>{error}</span></div> : loading ? <CardSkeletons /> : items.length ? <div className="item-grid">{items.map((item) => <ItemCard key={item._id} item={item} currentUser={user} onChanged={onRefresh} />)}</div> : <EmptyFeed />}</>;
 }
 
 function PortalRoutes() {

@@ -19,6 +19,7 @@ The earlier Firebase implementation has been replaced. Firebase Auth, Firestore,
 - Server-side matching based on category, location, and descriptive keywords
 - In-app notifications for strong potential matches
 - Ownership and admin authorization for updating or deleting reports
+- Frontend controls for editing, resolving, reopening, and deleting owned reports
 - Open, resolved, and reopened report lifecycle
 - Responsive desktop and mobile interface
 - Seed data and unit tests for matching/client utilities
@@ -66,6 +67,8 @@ Prerequisites: Node.js 20+ and MongoDB 7+.
    ```
 
 The portal runs at `http://localhost:5173`; the API runs at `http://localhost:5000`.
+
+For a single production deployment, run `npm run build` and set `NODE_ENV=production`. The Express server will serve `client/dist` and route browser navigation back to the React entry point.
 
 After seeding, use `amarjit@thapar.edu` / `Campus@123` for the demo admin account. Change or remove seeded credentials before any public deployment.
 

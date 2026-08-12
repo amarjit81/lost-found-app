@@ -94,6 +94,7 @@ router.post("/", asyncHandler(async (req, res) => {
 }));
 
 router.patch("/:id", asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: "Item not found" });
   const item = await Item.findById(req.params.id);
   if (!item) return res.status(404).json({ message: "Item not found" });
   if (String(item.createdBy) !== req.user.id && req.user.role !== "admin") return res.status(403).json({ message: "You can only update your own posts" });
@@ -106,12 +107,15 @@ router.patch("/:id", asyncHandler(async (req, res) => {
   for (const key of ["title", "description", "location", "contact", "imageUrl"]) {
     if (typeof req.body[key] === "string") item[key] = req.body[key].trim();
   }
+  const validationError = validateItem(item);
+  if (validationError) return res.status(400).json({ message: validationError });
   await item.save();
   await item.populate("createdBy", "name avatarUrl");
   res.json({ item });
 }));
 
 router.delete("/:id", asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: "Item not found" });
   const item = await Item.findById(req.params.id);
   if (!item) return res.status(404).json({ message: "Item not found" });
   if (String(item.createdBy) !== req.user.id && req.user.role !== "admin") return res.status(403).json({ message: "You can only delete your own posts" });

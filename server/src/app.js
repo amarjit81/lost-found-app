@@ -3,6 +3,9 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { rateLimit } from "express-rate-limit";
 import authRoutes from "./routes/authRoutes.js";
 import itemRoutes from "./routes/itemRoutes.js";
@@ -21,6 +24,16 @@ app.get("/api/health", (req, res) => res.json({ status: "ok", service: "campus-r
 app.use("/api/auth", authRoutes);
 app.use("/api/items", itemRoutes);
 app.use("/api/notifications", notificationRoutes);
+
+const clientDist = fileURLToPath(new URL("../../client/dist", import.meta.url));
+if (process.env.NODE_ENV === "production" && existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.use((req, res, next) => {
+    if (req.method === "GET" && req.accepts("html")) return res.sendFile(path.join(clientDist, "index.html"));
+    next();
+  });
+}
+
 app.use(notFound);
 app.use(errorHandler);
 
