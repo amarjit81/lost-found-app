@@ -1,18 +1,20 @@
 {
-  "name": "gpt-prj",
-  "version": "1.0.0",
-  "description": "",
-  "main": "auth.js",
+  "name": "campus-reclaim",
+  "version": "2.0.0",
+  "private": true,
+  "workspaces": ["client", "server"],
+  "description": "A MERN lost-and-found portal for campus communities",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "build": "npm run build --prefix client",
+    "postinstall": "npm run build",
+    "start": "npm run start --prefix server",
+    "test": "npm run test --prefix server && npm run test --prefix client"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "devDependencies": {
-    "autoprefixer": "^10.4.23",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.18"
+    "concurrently": "^9.2.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
